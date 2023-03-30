@@ -45,8 +45,22 @@ int valid_perm_str( char *perm_str) {
 	return 0;
 }
 
+int directory_rec( char *path, char *perm_str) {
+	DIR *dir;
+	struct dirent *entry;
+	struct stat statbuf;
+	char fullpath[PATH_MAX];
+	if ((dir = opendir(path)) == NULL) {
+		return -1
+	}
+	while ((entry = readdir(dir)) != NULL) {
+		// Skip . and ..
+		if
+
+
 int main(int argc, char **argv) {
 	int d_flag = 0, p_flag = 0, h_flag = 0, opt = 0;
+	opterr = 0; // suppresses the getopts error messages.
 	while ((opt = getopt(argc, argv, "dph")) != -1) {
 		switch (opt) {
 			case 'd':
@@ -60,7 +74,6 @@ int main(int argc, char **argv) {
 				break;
 			case '?':
 				fprintf(stderr, "Error: Unknown option '-%c' received.\n", optopt);
-				display_usage(argv[0], stderr);
 				return EXIT_FAILURE;
 			default:
 				return EXIT_FAILURE;
@@ -83,20 +96,9 @@ int main(int argc, char **argv) {
 		return EXIT_SUCCESS;
 	}
 
-	char path[PATH_MAX];
-	if (realpath(argv[2], path) == NULL) {
-		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]); //check if we need errno
-		return EXIT_FAILURE;
-	}
-
-	DIR *dir;
-	if ((dir = opendir(path)) == NULL) {
-		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);
-		return EXIT_FAILURE;
-	}
-
-	if (valid_perm_str(argv[4]) != 0) {
-		fprintf(stderr, "Error: Permissions string '%s' is invalid.\n", argv[4]);
+	
+	if (valid_perm_str(argv[optind + 1]) != 0) {
+		fprintf(stderr, "Error: Permissions string '%s' is invalid.\n", argv[optind + 1]);
 		return EXIT_FAILURE;
 	}
 	
