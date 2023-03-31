@@ -9,9 +9,6 @@
 
 void display_usage(char *basename, FILE *stream) {
 	char* usage = "Usage: %s -d <directory> -p <permissions string> [-h]\n";
-//		      "   -d: Searches directory and list files matching specified permissions.\n"
-//		      "   -p: Specifies the permissions for files contained in the directory.\n"
-//		      "   -h: Displays help.\n";
 	fprintf(stream, usage, basename);
 }
 
@@ -145,7 +142,7 @@ int directory_rec( char *fullpath, char *perm_str) {
 int main(int argc, char **argv) {
 	int d_flag = 0, p_flag = 0, h_flag = 0, opt = 0;
 	opterr = 0; // suppresses the getopts error messages.
-	while ((opt = getopt(argc, argv, "dph-")) != -1) {
+	while ((opt = getopt(argc, argv, "d:p:h")) != -1) {
 		switch (opt) {
 			case 'd':
 				d_flag = 1;
@@ -155,9 +152,7 @@ int main(int argc, char **argv) {
 				break;
 			case 'h':
 				h_flag = 1;
-				break;
-			case '-':
-				continue;	
+				break;	
 			case '?':
 				fprintf(stderr, "Error: Unknown option '-%c' received.\n", optopt);
 				return EXIT_FAILURE;
@@ -183,22 +178,22 @@ int main(int argc, char **argv) {
 	}
 
 	struct stat statbuf;
-	if (stat(argv[optind], &statbuf) < 0) {
-		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[optind]);
+	if (stat(argv[2], &statbuf) < 0) {
+		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);	
 		return EXIT_FAILURE;
 	}
 
 	if (!S_ISDIR(statbuf.st_mode)) {
-		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[optind]);
+		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);
 		return EXIT_FAILURE;
 	} else if (!((statbuf.st_mode & S_IRUSR) && (statbuf.st_mode & S_IWUSR))) {
-		fprintf(stderr, "Error: Cannot open directory '%s'. Permission denied.\n", argv[optind]);
+		fprintf(stderr, "Error: Cannot open directory '%s'. Permission denied.\n", argv[2]);
 		return EXIT_FAILURE;
-	}else if (valid_perm_str(argv[optind + 1]) != 0) {
-		fprintf(stderr, "Error: Permissions string '%s' is invalid.\n", argv[optind + 1]);
+	}else if (valid_perm_str(argv[4]) != 0) {
+		fprintf(stderr, "Error: Permissions string '%s' is invalid.\n", argv[4]);
 		return EXIT_FAILURE;
 	}else {
-		directory_rec(argv[optind], argv[optind]);
+		directory_rec(argv[2], argv[4]);
 	}
 
 
