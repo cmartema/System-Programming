@@ -40,13 +40,15 @@ int valid_perm_str( char *perm_str) {
 		}
 	}
 	return 0;
+
 }
 
-int is_matching_perm(struct stat *sb, char *perm_str) {
-	int perms[] = {S_IRUSR, S_IWUSR, S_IXUSR,
+int perms[] = {S_IRUSR, S_IWUSR, S_IXUSR,
 		S_IRGRP, S_IWGRP, S_IXGRP,
 		S_IROTH, S_IWOTH, S_IXOTH};
 
+char* permission_string(struct stat *sb) {
+	
 	char *file_perm_string;
 	if ((file_perm_string = malloc(10 * sizeof(char))) == NULL) {
 	fprintf(stderr, "Error: malloc failed. %s.\n",
@@ -62,13 +64,7 @@ int is_matching_perm(struct stat *sb, char *perm_str) {
 	}
 
 	file_perm_string[9] = '\0';
-	if (strcmp(file_perm_string, perm_str) == 0) {
-		free(file_perm_string);
-		return 0;
-	}
-
-	free(file_perm_string);
-	return -1;
+	return file_perm_string;
 }
 
 int directory_rec( char *fullpath, char *perm_str) {
@@ -110,12 +106,9 @@ int directory_rec( char *fullpath, char *perm_str) {
 	full_filename[pathlen] = '\0';
 	struct dirent *entry;
 	struct stat sb;
-	while ((entry = readdir(dir)) != NULL) {
-		// Skip . and ..
-		if (strcmp(entry->d_name, ".") == 0 ||
-				strcmp(entry->d_name, "..") == 0) {
-			continue;
-		}
+	
+	while ((entry = readdir(dir)) != NULL) {	
+
 		// Add the current entry's name to the end of full_filename, following
 		// the trailing '/' and overwriting the '\0'.
 		strncpy(full_filename + pathlen, entry->d_name, PATH_MAX - pathlen);
@@ -125,17 +118,29 @@ int directory_rec( char *fullpath, char *perm_str) {
 			continue;
 		}
 
-		if (is_matching_perm(&sb, perm_str)) { 
-			printf("%s\n", full_filename);
-		}
-
-		if (S_ISDIR(sb.st_mode)) {
+					
+		if (!S_ISDIR(sb.st_mode)) {
+			char *fperm_str = permission_string(&sb);
+			if (strcmp(fperm_str, perm_str) == 0) {
+				printf("%s\n", full_filename);	
+				fflush(stdout);
+			}
+			free(fperm_str);
+		} else {
+			if (strcmp(entry->d_name, ".") == 0 ||
+				strcmp(entry->d_name, "..") == 0) {
+				continue;
+			}
+			char *fperm_str = permission_string(&sb);
+			if (strcmp(fperm_str, perm_str) == 0) {
+				printf("%s\n", full_filename);
+				fflush(stdout);	
+			}	
 			directory_rec(full_filename, perm_str);
+			free(fperm_str);
 		}
-
 	}
-
-	closedir(dir);
+	closedir(dir);	
 	return EXIT_SUCCESS;
 }
 
