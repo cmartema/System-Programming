@@ -106,24 +106,30 @@ int directory_rec( char *fullpath, char *perm_str) {
 	full_filename[pathlen] = '\0';
 	struct dirent *entry;
 	struct stat sb;
-	
 	while ((entry = readdir(dir)) != NULL) {	
 
 		// Add the current entry's name to the end of full_filename, following
 		// the trailing '/' and overwriting the '\0'.
 		strncpy(full_filename + pathlen, entry->d_name, PATH_MAX - pathlen);
-		if (lstat(full_filename, &sb) < 0) {
-			fprintf(stderr, "Error: Cannot stat file '%s'. %s.\n",
-					full_filename, strerror(errno));
-			continue;
-		}
 
-					
+		//if the directory is a symbolic link
+		if (S_ISLNK(sb.st_mode)) {
+			if (stat(full_filename, &sb) < 0) {
+				fprintf(stderr, "Error: Cannot stat file '%s'. %s.\n",
+					full_filename, strerror(errno));
+				continue;
+			}
+		}else{
+			if (lstat(full_filename, &sb) < 0) {
+				fprintf(stderr, "Error: Cannot stat file '%s'. %s.\n",
+					full_filename, strerror(errno));
+				continue;
+			}
+		}				
 		if (!S_ISDIR(sb.st_mode)) {
 			char *fperm_str = permission_string(&sb);
 			if (strcmp(fperm_str, perm_str) == 0) {
 				printf("%s\n", full_filename);	
-				fflush(stdout);
 			}
 			free(fperm_str);
 		} else {
@@ -132,10 +138,15 @@ int directory_rec( char *fullpath, char *perm_str) {
 				continue;
 			}
 			char *fperm_str = permission_string(&sb);
-			if (strcmp(fperm_str, perm_str) == 0) {
-				printf("%s\n", full_filename);
-				fflush(stdout);	
-			}	
+			if (!((sb.st_mode & S_IRUSR) && (sb.st_mode & S_IWUSR))) {
+				fprintf(stderr, "Error: Cannot open directory '%s'. Permission denied.\n", fullpath);
+				continue;
+			}else {
+
+				if (strcmp(fperm_str, perm_str) == 0) {
+					printf("%s\n", full_filename);	
+				}	
+			}
 			directory_rec(full_filename, perm_str);
 			free(fperm_str);
 		}
@@ -145,7 +156,7 @@ int directory_rec( char *fullpath, char *perm_str) {
 }
 
 int main(int argc, char **argv) {
-	int d_flag = 0, p_flag = 0, h_flag = 0, opt = 0;
+int d_flag = 0, p_flag = 0, h_flag = 0, opt = 0;
 	opterr = 0; // suppresses the getopts error messages.
 	while ((opt = getopt(argc, argv, "d:p:h")) != -1) {
 		switch (opt) {
@@ -177,18 +188,17 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	if ((h_flag == 1) || ((d_flag + p_flag + h_flag) > 2)) {
+	if ((h_flag == 1) || ((d_flag + p_flag + h_flag) > 2) || ((d_flag + p_flag + h_flag) == 0)) {
 		display_usage(argv[0], stdout);
 		return EXIT_SUCCESS;
 	}
 
 	struct stat statbuf;
-	if (stat(argv[2], &statbuf) < 0) {
-		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);	
+	if (lstat(argv[2], &statbuf) < 0) {
+		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);
 		return EXIT_FAILURE;
 	}
-
-	if (!S_ISDIR(statbuf.st_mode)) {
+	if (!S_ISDIR(statbuf.st_mode) && !S_ISLNK(statbuf.st_mode)) {
 		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);
 		return EXIT_FAILURE;
 	} else if (!((statbuf.st_mode & S_IRUSR) && (statbuf.st_mode & S_IWUSR))) {
@@ -200,6 +210,4 @@ int main(int argc, char **argv) {
 	}else {
 		directory_rec(argv[2], argv[4]);
 	}
-
-
 }
