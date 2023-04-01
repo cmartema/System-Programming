@@ -1,15 +1,15 @@
-<<<<<<< HEAD
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <string.h> 
 
 int main(int argc, char *argv[]){
 	
 	// check if it is valid
-	// TODO Make sure this is right and works 
+	// TODO Make sure this is right and works
 	if(argc < 2 || argc > 5){
-		fprintf(stderr, "Usage: %s -d <directory> -p <permissions string> [-h]", argv[0]);
+		fprintf(stderr, "Usage: %s -d <directory> -p <permissions string> [-h]\n", argv[0]);
 	       return EXIT_FAILURE; 	
 	}
 
@@ -29,18 +29,17 @@ int main(int argc, char *argv[]){
 		// pfind process
 		close(pfind_to_sort[0]); 
 		dup2(pfind_to_sort[1], STDOUT_FILENO);
-
-		// close all unrelated file descriptors 	
 		close(pfind_to_sort[1]); 
+		// close all unrelated file desciptors 
 		close(sort_to_parent[0]);
 		close(sort_to_parent[1]);
 	
 		// calling the function pfind 
 		// TODO - need to make sure it is execv ?
 		// make sure it does not fail with the if statment
-		if(execv("pfind", argv) == -1){
-			fprintf(stderr, "Error: pfind failed.");
-			return EXIT_FAILURE;
+		if(execv("./pfind", argv) == -1){
+			fprintf(stderr, "Error: pfind failed.\n");
+			return EXIT_FAILURE;	
 		}
 	}
 
@@ -54,7 +53,7 @@ int main(int argc, char *argv[]){
 		close(sort_to_parent[1]);
 
 		if(execlp("sort", "sort", NULL) == -1){
-			fprintf(stderr, "Error: sort failed."); 
+			fprintf(stderr, "Error: sort failed.\n"); 
 			return EXIT_FAILURE;
 		}	
 	}
@@ -67,19 +66,65 @@ int main(int argc, char *argv[]){
 	// close all unrelated file descriptors 
 	close(pfind_to_sort[0]);
 	close(pfind_to_sort[1]); 
+	
+	// read through output and write to stdout 
+	char buffer[8192];
+	ssize_t bytes_read;
+	int ctr = 0; 
+        while((bytes_read = read(STDIN_FILENO, buffer, sizeof(buffer - 1)) > 0)){
+		//buffer[bytes_read] = '\0';	
+		//printf("bytes_read = %ld\n", sizeof(bytes_read)); 
+		if(write(STDOUT_FILENO, buffer, sizeof(bytes_read)) < 0){
+			perror("Write()");
+			exit(EXIT_FAILURE);
+		}
+		
+		// printf("Buffer = %s\n", buffer); 
+		
+		 if(bytes_read == -1){
+			 perror("read()");
+			 exit(EXIT_FAILURE);
+		}
+		
+		// check for newlines -> +1 match
+		char *newline = strchr(buffer, '\n'); 
 
-	char buffer[128];
-	ssize_t count = read(STDIN_FILENO, buffer, sizeof(buffer - 1)); 
-	if(count == -1){
-		perror("read()");
-		exit(EXIT_FAILURE);
+		if(newline != NULL){
+			ctr++; 		
+		}
+
 	}
-	buffer[count] = '\0';
-	printf("Total matches: %d", atoi(buffer)); 
 
-	// need 2 waits to wait for each child.
-	wait(NULL); 
-	wait(NULL);
+	buffer[bytes_read] = '\0';	
+	printf("Total matches: %d\n", ctr);
+
+	// waitpid
+	// if status of either child is failure - exit failure 
+	int status;
+	int i = 0; 
+	do{
+		pid_t w = waitpid(pid[i], &status, WUNTRACED | WCONTINUED);
+		if(w == -1){
+			// waitpid failed.
+			perror("waitpid()");
+			exit(EXIT_FAILURE);
+		}
+
+		if(WIFEXITED(status) || WIFSIGNALED(status) || WIFSTOPPED(status) || WIFCONTINUED(status)){
+			exit(EXIT_FAILURE); 
+		}	
+
+		i++; 
+
+	} while(!WIFEXITED(status) && !WIFSIGNALED(status));
+
+	// check that pfind didn't print the usage - strcmp - exit success
+	
+	if(buffer[0] == 'U'){
+		exit(EXIT_SUCCESS);
+	}
+
+	printf("Total matches: %d\n", ctr);
 
 	return EXIT_SUCCESS;
 }
