@@ -40,13 +40,15 @@ int valid_perm_str( char *perm_str) {
 		}
 	}
 	return 0;
+
 }
 
-int is_matching_perm(struct stat *sb, char *perm_str) {
-	int perms[] = {S_IRUSR, S_IWUSR, S_IXUSR,
+int perms[] = {S_IRUSR, S_IWUSR, S_IXUSR,
 		S_IRGRP, S_IWGRP, S_IXGRP,
 		S_IROTH, S_IWOTH, S_IXOTH};
 
+char* permission_string(struct stat *sb) {
+	
 	char *file_perm_string;
 	if ((file_perm_string = malloc(10 * sizeof(char))) == NULL) {
 	fprintf(stderr, "Error: malloc failed. %s.\n",
@@ -62,13 +64,7 @@ int is_matching_perm(struct stat *sb, char *perm_str) {
 	}
 
 	file_perm_string[9] = '\0';
-	if (strcmp(file_perm_string, perm_str) == 0) {
-		free(file_perm_string);
-		return 0;
-	}
-
-	free(file_perm_string);
-	return -1;
+	return file_perm_string;
 }
 
 int directory_rec( char *fullpath, char *perm_str) {
@@ -110,37 +106,57 @@ int directory_rec( char *fullpath, char *perm_str) {
 	full_filename[pathlen] = '\0';
 	struct dirent *entry;
 	struct stat sb;
-	while ((entry = readdir(dir)) != NULL) {
-		// Skip . and ..
-		if (strcmp(entry->d_name, ".") == 0 ||
-				strcmp(entry->d_name, "..") == 0) {
-			continue;
-		}
+	while ((entry = readdir(dir)) != NULL) {	
+
 		// Add the current entry's name to the end of full_filename, following
 		// the trailing '/' and overwriting the '\0'.
 		strncpy(full_filename + pathlen, entry->d_name, PATH_MAX - pathlen);
-		if (lstat(full_filename, &sb) < 0) {
-			fprintf(stderr, "Error: Cannot stat file '%s'. %s.\n",
+
+		//if the directory is a symbolic link
+		if (S_ISLNK(sb.st_mode)) {
+			if (stat(full_filename, &sb) < 0) {
+				fprintf(stderr, "Error: Cannot stat file '%s'. %s.\n",
 					full_filename, strerror(errno));
-			continue;
-		}
+				continue;
+			}
+		}else{
+			if (lstat(full_filename, &sb) < 0) {
+				fprintf(stderr, "Error: Cannot stat file '%s'. %s.\n",
+					full_filename, strerror(errno));
+				continue;
+			}
+		}				
+		if (!S_ISDIR(sb.st_mode)) {
+			char *fperm_str = permission_string(&sb);
+			if (strcmp(fperm_str, perm_str) == 0) {
+				printf("%s\n", full_filename);	
+			}
+			free(fperm_str);
+		} else {
+			if (strcmp(entry->d_name, ".") == 0 ||
+				strcmp(entry->d_name, "..") == 0) {
+				continue;
+			}
+			char *fperm_str = permission_string(&sb);
+			if (!((sb.st_mode & S_IRUSR) && (sb.st_mode & S_IWUSR))) {
+				fprintf(stderr, "Error: Cannot open directory '%s'. Permission denied.\n", fullpath);
+				continue;
+			}else {
 
-		if (is_matching_perm(&sb, perm_str)) { 
-			printf("%s\n", full_filename);
-		}
-
-		if (S_ISDIR(sb.st_mode)) {
+				if (strcmp(fperm_str, perm_str) == 0) {
+					printf("%s\n", full_filename);	
+				}	
+			}
 			directory_rec(full_filename, perm_str);
+			free(fperm_str);
 		}
-
 	}
-
-	closedir(dir);
+	closedir(dir);	
 	return EXIT_SUCCESS;
 }
 
 int main(int argc, char **argv) {
-	int d_flag = 0, p_flag = 0, h_flag = 0, opt = 0;
+int d_flag = 0, p_flag = 0, h_flag = 0, opt = 0;
 	opterr = 0; // suppresses the getopts error messages.
 	while ((opt = getopt(argc, argv, "d:p:h")) != -1) {
 		switch (opt) {
@@ -172,18 +188,17 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
-	if ((h_flag == 1) || ((d_flag + p_flag + h_flag) > 2)) {
+	if ((h_flag == 1) || ((d_flag + p_flag + h_flag) > 2) || ((d_flag + p_flag + h_flag) == 0)) {
 		display_usage(argv[0], stdout);
 		return EXIT_SUCCESS;
 	}
 
 	struct stat statbuf;
-	if (stat(argv[2], &statbuf) < 0) {
-		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);	
+	if (lstat(argv[2], &statbuf) < 0) {
+		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);
 		return EXIT_FAILURE;
 	}
-
-	if (!S_ISDIR(statbuf.st_mode)) {
+	if (!S_ISDIR(statbuf.st_mode) && !S_ISLNK(statbuf.st_mode)) {
 		fprintf(stderr, "Error: Cannot stat '%s'. No such file or directory.\n", argv[2]);
 		return EXIT_FAILURE;
 	} else if (!((statbuf.st_mode & S_IRUSR) && (statbuf.st_mode & S_IWUSR))) {
@@ -195,6 +210,4 @@ int main(int argc, char **argv) {
 	}else {
 		directory_rec(argv[2], argv[4]);
 	}
-
-
 }
