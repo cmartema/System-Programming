@@ -22,7 +22,7 @@ int main(int argc, char *argv[]){
 	pipe(pfind_to_sort);
 	pipe(sort_to_parent); 
 	
-	//make an array of the pids of the upcoming sorts
+	//make an array of the pids of the upcoming forks
 	pid_t pid[2];
 	
 	if((pid[0] = fork()) == 0) {
@@ -71,52 +71,65 @@ int main(int argc, char *argv[]){
 	char buffer[8192];
 	ssize_t bytes_read;
 	int ctr = 0; 
-        while((bytes_read = read(STDIN_FILENO, buffer, sizeof(buffer - 1)) > 0)){
-		//buffer[bytes_read] = '\0';	
-		//printf("bytes_read = %ld\n", sizeof(bytes_read)); 
-		if(write(STDOUT_FILENO, buffer, sizeof(bytes_read)) < 0){
+	while((bytes_read = read(STDIN_FILENO, buffer, sizeof(buffer) - 1)) > 0){
+		
+		if(write(STDOUT_FILENO, buffer, bytes_read) < 0){
 			perror("Write()");
 			exit(EXIT_FAILURE);
 		}
-		
-		// printf("Buffer = %s\n", buffer); 
 		
 		 if(bytes_read == -1){
 			 perror("read()");
 			 exit(EXIT_FAILURE);
 		}
-		
-		// check for newlines -> +1 match
-		char *newline = strchr(buffer, '\n'); 
 
-		if(newline != NULL){
-			ctr++; 		
+		// count the number of matches based on the 
+		// number of newlines written to stdout 
+		for(int i = 0; i < bytes_read; i++){
+			if(buffer[i] == '\n'){
+				ctr++;
+			}
 		}
 
 	}
 
 	buffer[bytes_read] = '\0';	
-	printf("Total matches: %d\n", ctr);
 
 	// waitpid
 	// if status of either child is failure - exit failure 
 	int status;
-	int i = 0; 
+	int i = 0;
+        int stat = 0;	
 	do{
 		pid_t w = waitpid(pid[i], &status, WUNTRACED | WCONTINUED);
 		if(w == -1){
 			// waitpid failed.
-			perror("waitpid()");
+			//perror("waitpid()");
+			//exit(EXIT_FAILURE);
+		}
+/*
+		if(WIFEXITED(status) || WIFSIGNALED(status) || WIFSTOPPED(status) || WIFCONTINUED(status)){
+			
+			if(status != 0){
+				printf("EXIT FAILURE"); 
+				exit(EXIT_FAILURE); 
+			}	
+		}
+*/
+		if (WIFEXITED(status)) {
+			stat = WEXITSTATUS(status);
+		} else if (WIFSIGNALED(status) || WIFSTOPPED(status) || WIFCONTINUED(status)) {
+			stat = 1; 
+		}
+
+		if(stat != 0){
 			exit(EXIT_FAILURE);
 		}
 
-		if(WIFEXITED(status) || WIFSIGNALED(status) || WIFSTOPPED(status) || WIFCONTINUED(status)){
-			exit(EXIT_FAILURE); 
-		}	
 
 		i++; 
 
-	} while(!WIFEXITED(status) && !WIFSIGNALED(status));
+	} while(i < 3 || (!WIFEXITED(status) && !WIFSIGNALED(status)));
 
 	// check that pfind didn't print the usage - strcmp - exit success
 	
