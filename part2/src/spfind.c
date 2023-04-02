@@ -14,8 +14,6 @@ int main(int argc, char *argv[]){
 	}
 
 	// the exec of pfind should handle all other error messages, permission string reqs, etc.
-	// check return code of all system and function calls 
-	// if exec-ing pfind or sort fails, indicate that
 	
 	// create the pipes
 	int pfind_to_sort[2], sort_to_parent[2];
@@ -103,19 +101,10 @@ int main(int argc, char *argv[]){
 	do{
 		pid_t w = waitpid(pid[i], &status, WUNTRACED | WCONTINUED);
 		if(w == -1){
-			// waitpid failed.
 			//perror("waitpid()");
 			//exit(EXIT_FAILURE);
 		}
-/*
-		if(WIFEXITED(status) || WIFSIGNALED(status) || WIFSTOPPED(status) || WIFCONTINUED(status)){
-			
-			if(status != 0){
-				printf("EXIT FAILURE"); 
-				exit(EXIT_FAILURE); 
-			}	
-		}
-*/
+		
 		if (WIFEXITED(status)) {
 			stat = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status) || WIFSTOPPED(status) || WIFCONTINUED(status)) {
